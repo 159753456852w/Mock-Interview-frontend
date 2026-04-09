@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模擬面試系統</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/animations.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Left Panel: AI 分析 -->
+        <aside class="panel left-panel">
+            <h2 class="panel-title">即時 AI 表現分析</h2>
+
+            <div class="score-box">
+                <span class="score-label">目前總體評分</span>
+                <span class="score-value" id="overall-score">--</span>
+            </div>
+
+            <h3 class="section-title">關鍵維度分析</h3>
+            <div class="dim-list">
+                <div class="dim-item">
+                    <span class="dim-name">語速</span>
+                    <span class="dim-status status-red" id="dim-speed">待分析</span>
+                </div>
+                <div class="dim-item">
+                    <span class="dim-name">信心</span>
+                    <span class="dim-status status-red" id="dim-confidence">待分析</span>
+                </div>
+                <div class="dim-item">
+                    <span class="dim-name">情緒</span>
+                    <span class="dim-status status-green" id="dim-emotion">待分析</span>
+                </div>
+            </div>
+
+            <h3 class="section-title">實際建議</h3>
+            <div class="advice-box" id="advice-box"
+                style="padding: 1rem; background-color: #f8fafc; border-radius: 0.5rem; color: #475569; font-size: 0.95rem; line-height: 1.5; margin-bottom: 2rem; white-space: pre-wrap;">
+                尚未有分析建議
+            </div>
+
+            <h3 class="section-title">語音與語法監測</h3>
+            <ul class="voice-list">
+                <li>• 發音特徵 (語速/音量/清晰度)</li>
+                <li>• 語法正確性</li>
+                <li>• 邏輯架構</li>
+            </ul>
+
+            <div class="live-box">
+                <h4 class="live-title">LIVE 分析指標 (處理中...)</h4>
+                <div class="live-item">語意成熟度 - 監測中</div>
+                <div class="live-item">回答回饋檢核 - 監測中</div>
+            </div>
+        </aside>
+
+        <!-- Main Panel: 面試核心區域 -->
+        <main class="panel main-panel">
+            <header class="main-header">
+                <h1 class="main-title">模擬情境</h1>
+                <div class="header-right">
+                    <div class="interviewer-box">
+                        <div class="api-status" id="api-status" style="font-size: 0.85rem; color: #666; margin-right: 1rem;">
+                            正在連接...
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="chat-container" id="chat-container">
+                <!-- Avatar 在左上角 -->
+                <div class="avatar-section">
+                    <div class="avatar-box">
+                        <div class="avatar-placeholder" id="avatar-container">
+                            <i data-lucide="user-circle" class="avatar-icon"></i>
+                        </div>
+                        <p class="avatar-name">AI 面試官</p>
+                    </div>
+                </div>
+                
+                <!-- 聲波動畫 -->
+                <div class="voice-visualizer hidden" id="voice-visualizer">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+                
+                <!-- 訊息列表 -->
+                <div class="messages-list" id="messages-list">
+                    <div class="system-message">
+                        <p>系統初始化中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-area">
+                <div class="button-group">
+                    <button class="btn btn-outline" id="history-btn">
+                        甄選診斷紀錄 (0)
+                    </button>
+                    <button class="btn btn-primary" id="start-btn" disabled>
+                        <i data-lucide="mic" class="lucide-icon"></i>
+                        <span id="start-btn-text">正在載入...</span>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel: 題庫系統 -->
+        <aside class="panel right-panel">
+            <header class="right-header" style="flex-wrap: wrap;">
+                <h2 class="panel-title">題庫系統</h2>
+                <button class="btn-refresh" id="refresh-btn">
+                    <i data-lucide="refresh-cw"></i>
+                    <span>隨機更換</span>
+                </button>
+                <select id="scenario-select" class="scenario-select"></select>
+            </header>
+
+            <div class="questions-list" id="question-list">
+                <!-- 題目將以 JavaScript 動態渲染 -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- API 配置初始化 -->
+    <script>
+        // 全局 API 配置 - 獨立版本
+        // 優先順序：URL 參數 > 環境配置 > 預設值
+        
+        // 先創建 Promise 並保存 resolve 函數
+        let resolveAPIConfig;
+        const apiConfigPromise = new Promise((resolve) => {
+            resolveAPIConfig = resolve;
+        });
+
+        window.API_CONFIG = {
+            // 從 URL 參數讀取 API 基礎 URL，或使用預設 ngrok URL
+            baseUrl: new URL(document.location).searchParams.get('apiUrl') || 'https://karissa-unsiding-graphemically.ngrok-free.dev',
+            ready: false,
+            loaded: apiConfigPromise,
+            resolve: resolveAPIConfig
+        };
+
+        console.log('[Config] 初始 API 基礎 URL:', window.API_CONFIG.baseUrl);
+
+        // 嘗試從後端獲取配置
+        (async () => {
+            try {
+                const response = await fetch(`${window.API_CONFIG.baseUrl}/api/config`, {
+                    headers: { 
+                        'Accept': 'application/json',
+                        'ngrok-skip-browser-warning': 'true'
+                    },
+                    timeout: 5000
+                });
+                if (response.ok) {
+                    const config = await response.json();
+                    window.API_CONFIG.baseUrl = config.api_base_url;
+                    window.API_CONFIG.ngrokEnabled = config.ngrok_enabled;
+                    const status = config.ngrok_enabled ? '✓ NGROK 連接' : '✓ 本地連接';
+                    document.getElementById('api-status').innerHTML = status;
+                    document.getElementById('api-status').style.color = '#22c55e';
+                    console.log('[Config] 後端配置已載入，API 基礎 URL:', window.API_CONFIG.baseUrl);
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (e) {
+                console.warn('[Config] 無法從後端獲取配置，使用初始值:', e.message);
+                document.getElementById('api-status').innerHTML = '⚠ 使用預設值';
+                document.getElementById('api-status').style.color = '#f59e0b';
+            } finally {
+                window.API_CONFIG.ready = true;
+                window.API_CONFIG.resolve();
+            }
+        })();
+
+        // 載入題庫
+        let globalScenarios = {};
+        
+        (async () => {
+            try {
+                await window.API_CONFIG.loaded; // 等待配置加載
+                const response = await fetch(`${window.API_CONFIG.baseUrl}/api/questions`, {
+                    headers: { 
+                        'Accept': 'application/json',
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+                if (response.ok) {
+                    const resJson = await response.json();
+                    globalScenarios = resJson.data || {};
+                    
+                    const scenarioSelect = document.getElementById('scenario-select');
+                    scenarioSelect.innerHTML = '';
+                    
+                    const scenarioNames = Object.keys(globalScenarios);
+                    if (scenarioNames.length > 0) {
+                        scenarioNames.forEach(name => {
+                            const option = document.createElement('option');
+                            option.value = name;
+                            option.textContent = name;
+                            scenarioSelect.appendChild(option);
+                        });
+                        
+                        // 初次載入
+                        renderQuestions(globalScenarios[scenarioNames[0]]);
+                        
+                        scenarioSelect.addEventListener('change', (e) => {
+                            const selectedScenario = e.target.value;
+                            renderQuestions(globalScenarios[selectedScenario]);
+                        });
+                    } else {
+                        document.getElementById('question-list').innerHTML = '<div style="padding: 1rem; color: #7A7A7A;">目前沒有題庫資料</div>';
+                    }
+                    
+                    document.getElementById('start-btn').disabled = false;
+                    document.getElementById('start-btn-text').textContent = '點擊開始錄音';
+                    console.log('[Questions] 題庫已載入，共包含', scenarioNames.length, '個情境');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (e) {
+                console.error('[Questions] 載入題庫失敗:', e);
+                document.getElementById('question-list').innerHTML = `
+                    <div style="padding: 1rem; background-color: #fee2e2; border-radius: 0.5rem; color: #dc2626;">
+                        <p>⚠️ 無法連接後端服務</p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">請檢查後端是否運行</p>
+                        <p style="font-size: 0.75rem; margin-top: 0.5rem; font-family: monospace;">
+                            URL 參數用法: ?apiUrl=https://your-ngrok-url.ngrok-free.dev
+                        </p>
+                    </div>
+                `;
+                document.getElementById('start-btn').disabled = true;
+                document.getElementById('start-btn-text').textContent = '無法連接';
+            }
+        })();
+
+        function renderQuestions(questions) {
+            const listEl = document.getElementById('question-list');
+            listEl.innerHTML = '';
+            
+            if (!questions || questions.length === 0) {
+                listEl.innerHTML = '<div style="padding: 1rem; color: #7A7A7A;">目前沒有題庫資料</div>';
+                return;
+            }
+            
+            questions.forEach((item, idx) => {
+                const card = document.createElement('div');
+                card.className = `question-card ${idx === 0 ? 'active' : ''}`;
+                card.dataset.q = item.title;
+                card.dataset.ref = item.reference_answer;
+                card.innerHTML = `
+                    <div class="q-tag ${idx === 0 ? 'tag-red' : 'tag-gray'}">${item.tag}</div>
+                    <div class="q-text">${item.title}</div>
+                `;
+                // 交由 main.js 統一的 event delegation 處理樣式切換與功能重置
+                listEl.appendChild(card);
+            });
+
+            // 觸發初始的第一個題目
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('questionChanged', { detail: questions[0].title }));
+            }, 100);
+        }
+    </script>
+
+    <!-- 載入核心功能邏輯 -->
+    <script src="js/main.js"></script>
+
+    <script>
+        // 初始化圖標
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    </script>
+    <!-- Report Modal -->
+    <div id="report-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>甄選診斷綜合報表</h2>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <button class="btn btn-outline" id="download-pdf-btn">
+                        <i data-lucide="download"></i> 下載 PDF
+                    </button>
+                    <button class="btn btn-close text-gray" id="close-modal-btn" style="background:transparent; border:none; cursor:pointer;">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="modal-body">
+                <!-- 這個區塊是匯出 PDF 的目標範圍 -->
+                <div class="report-document" id="pdf-target">
+                    <div class="report-header-doc">
+                        <h1>面試評估綜合報告</h1>
+                        <p id="report-date"></p>
+                    </div>
+
+                    <div class="report-section">
+                        <h3>答題歷史紀錄</h3>
+                        <div class="table-responsive">
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 5%">#</th>
+                                        <th style="width: 30%">題目</th>
+                                        <th style="width: 10%">分數</th>
+                                        <th style="width: 20%">語速 / 信心 / 情緒</th>
+                                        <th style="width: 35%">單題建議</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-records-body">
+                                    <!-- 動態生成紀錄 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="report-section" style="margin-top:2rem;">
+                        <div class="ai-advice-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom:0.5rem; margin-bottom:1rem;">
+                            <h3 style="margin:0;">AI 面試官綜合建議</h3>
+                            <button class="btn btn-primary" id="generate-advice-btn" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                                產生總結分析
+                            </button>
+                        </div>
+                        <div class="ai-advice-content" id="ai-aggregate-advice" style="background-color:#f8fafc; padding:1.5rem; border-radius:0.5rem; min-height:100px; white-space:pre-wrap; line-height:1.6; color:#334155;">
+                            <p class="empty-state" style="color:#94a3b8; text-align:center;">點擊上方按鈕，AI 將為您的所有面試紀錄進行綜合分析。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
