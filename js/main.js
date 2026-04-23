@@ -468,6 +468,59 @@ document.addEventListener('DOMContentLoaded', () => {
     // Call it initially
     setTimeout(updateHistoryCount, 500);
 
+    // === Download History Logic ===
+    const downloadHistoryBtn = document.getElementById('download-history-btn');
+    
+    if (downloadHistoryBtn) {
+        downloadHistoryBtn.addEventListener('click', async () => {
+            downloadHistoryBtn.disabled = true;
+            const originalHTML = downloadHistoryBtn.innerHTML;
+            downloadHistoryBtn.innerHTML = '<i data-lucide="loader"></i> <span>下載中...</span>';
+            if (window.lucide) lucide.createIcons();
+
+            try {
+                const apiUrl = `${window.API_CONFIG.baseUrl}/api/download-history`;
+                const response = await fetch(apiUrl, {
+                    headers: { 'ngrok-skip-browser-warning': 'true' }
+                });
+
+                if (response.ok) {
+                    // 從 response 取得 blob 並利用 URL.createObjectURL 下載
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `interview_history_${new Date().getTime()}.csv`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    // 下載成功後清除記錄計數
+                    setTimeout(() => {
+                        updateHistoryCount();
+                        historyBtn.innerHTML = `甄選診斷紀錄 (0)`;
+                    }, 500);
+
+                    // 顯示成功提示
+                    alert('✓ 紀錄已下載並清除！\n\n下次打開網頁時將重新開始記錄。');
+                } else if (response.status === 404) {
+                    alert('⚠️ 目前沒有紀錄可下載');
+                } else {
+                    const result = await response.json();
+                    alert(`❌ 下載失敗：${result.message}`);
+                }
+            } catch (error) {
+                console.error("Download error:", error);
+                alert('❌ 下載過程發生錯誤，請檢查網路連線');
+            } finally {
+                downloadHistoryBtn.disabled = false;
+                downloadHistoryBtn.innerHTML = originalHTML;
+                if (window.lucide) lucide.createIcons();
+            }
+        });
+    }
+
     if (historyBtn && reportModal) {
         historyBtn.addEventListener('click', async () => {
             reportModal.classList.remove('hidden');

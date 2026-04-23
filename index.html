@@ -67,7 +67,8 @@
                 <h1 class="main-title">模擬情境</h1>
                 <div class="header-right">
                     <div class="interviewer-box">
-                        <div class="api-status" id="api-status" style="font-size: 0.85rem; color: #666; margin-right: 1rem;">
+                        <div class="api-status" id="api-status"
+                            style="font-size: 0.85rem; color: #666; margin-right: 1rem;">
                             正在連接...
                         </div>
                     </div>
@@ -84,7 +85,7 @@
                         <p class="avatar-name">AI 面試官</p>
                     </div>
                 </div>
-                
+
                 <!-- 聲波動畫 -->
                 <div class="voice-visualizer hidden" id="voice-visualizer">
                     <div class="bar"></div>
@@ -93,7 +94,7 @@
                     <div class="bar"></div>
                     <div class="bar"></div>
                 </div>
-                
+
                 <!-- 訊息列表 -->
                 <div class="messages-list" id="messages-list">
                     <div class="system-message">
@@ -106,6 +107,10 @@
                 <div class="button-group">
                     <button class="btn btn-outline" id="history-btn">
                         甄選診斷紀錄 (0)
+                    </button>
+                    <button class="btn btn-outline" id="download-history-btn">
+                        <i data-lucide="download" class="lucide-icon"></i>
+                        <span>下載並清除紀錄</span>
                     </button>
                     <button class="btn btn-primary" id="start-btn" disabled>
                         <i data-lucide="mic" class="lucide-icon"></i>
@@ -123,6 +128,12 @@
                     <i data-lucide="refresh-cw"></i>
                     <span>隨機更換</span>
                 </button>
+                <a href="https://docs.google.com/spreadsheets/d/1S2y0u2lcQObdcYMJxEjP4Q5UkeYVP9ZwB4L75EgSoqA/edit"
+                    target="_blank" rel="noopener noreferrer" class="btn-refresh" id="edit-questions-btn"
+                    style="text-decoration: none;">
+                    <i data-lucide="pencil"></i>
+                    <span>編輯題目</span>
+                </a>
                 <select id="scenario-select" class="scenario-select"></select>
             </header>
 
@@ -136,7 +147,7 @@
     <script>
         // 全局 API 配置 - 獨立版本
         // 優先順序：URL 參數 > 環境配置 > 預設值
-        
+
         // 先創建 Promise 並保存 resolve 函數
         let resolveAPIConfig;
         const apiConfigPromise = new Promise((resolve) => {
@@ -144,8 +155,9 @@
         });
 
         window.API_CONFIG = {
-            // 從 URL 參數讀取 API 基礎 URL，或使用預設 ngrok URL
-            baseUrl: new URL(document.location).searchParams.get('apiUrl') || 'https://karissa-unsiding-graphemically.ngrok-free.dev',
+            // 從 URL 參數讀取 API 基礎 URL，預設使用本地 API Gateway (Proxy Port 5000) 或後端 Port
+            baseUrl: new URLSearchParams(window.location.search).get('apiUrl') || 'http://127.0.0.1:5000',
+            explicitApiUrl: !!new URLSearchParams(window.location.search).get('apiUrl'),
             ready: false,
             loaded: apiConfigPromise,
             resolve: resolveAPIConfig
@@ -157,7 +169,7 @@
         (async () => {
             try {
                 const response = await fetch(`${window.API_CONFIG.baseUrl}/api/config`, {
-                    headers: { 
+                    headers: {
                         'Accept': 'application/json',
                         'ngrok-skip-browser-warning': 'true'
                     },
@@ -165,9 +177,12 @@
                 });
                 if (response.ok) {
                     const config = await response.json();
-                    window.API_CONFIG.baseUrl = config.api_base_url;
+                    // 如果使用者沒有透過 URL 參數指定 apiUrl，才使用後端返回的配置
+                    if (!window.API_CONFIG.explicitApiUrl) {
+                        window.API_CONFIG.baseUrl = config.api_base_url;
+                    }
                     window.API_CONFIG.ngrokEnabled = config.ngrok_enabled;
-                    const status = config.ngrok_enabled ? '✓ NGROK 連接' : '✓ 本地連接';
+                    const status = window.API_CONFIG.explicitApiUrl ? '✓ 本地連接' : (config.ngrok_enabled ? '✓ NGROK 連接' : '✓ 本地連接');
                     document.getElementById('api-status').innerHTML = status;
                     document.getElementById('api-status').style.color = '#22c55e';
                     console.log('[Config] 後端配置已載入，API 基礎 URL:', window.API_CONFIG.baseUrl);
@@ -186,12 +201,12 @@
 
         // 載入題庫
         let globalScenarios = {};
-        
+
         (async () => {
             try {
                 await window.API_CONFIG.loaded; // 等待配置加載
                 const response = await fetch(`${window.API_CONFIG.baseUrl}/api/questions`, {
-                    headers: { 
+                    headers: {
                         'Accept': 'application/json',
                         'ngrok-skip-browser-warning': 'true'
                     }
@@ -199,10 +214,10 @@
                 if (response.ok) {
                     const resJson = await response.json();
                     globalScenarios = resJson.data || {};
-                    
+
                     const scenarioSelect = document.getElementById('scenario-select');
                     scenarioSelect.innerHTML = '';
-                    
+
                     const scenarioNames = Object.keys(globalScenarios);
                     if (scenarioNames.length > 0) {
                         scenarioNames.forEach(name => {
@@ -211,10 +226,10 @@
                             option.textContent = name;
                             scenarioSelect.appendChild(option);
                         });
-                        
+
                         // 初次載入
                         renderQuestions(globalScenarios[scenarioNames[0]]);
-                        
+
                         scenarioSelect.addEventListener('change', (e) => {
                             const selectedScenario = e.target.value;
                             renderQuestions(globalScenarios[selectedScenario]);
@@ -222,7 +237,7 @@
                     } else {
                         document.getElementById('question-list').innerHTML = '<div style="padding: 1rem; color: #7A7A7A;">目前沒有題庫資料</div>';
                     }
-                    
+
                     document.getElementById('start-btn').disabled = false;
                     document.getElementById('start-btn-text').textContent = '點擊開始錄音';
                     console.log('[Questions] 題庫已載入，共包含', scenarioNames.length, '個情境');
@@ -248,12 +263,12 @@
         function renderQuestions(questions) {
             const listEl = document.getElementById('question-list');
             listEl.innerHTML = '';
-            
+
             if (!questions || questions.length === 0) {
                 listEl.innerHTML = '<div style="padding: 1rem; color: #7A7A7A;">目前沒有題庫資料</div>';
                 return;
             }
-            
+
             questions.forEach((item, idx) => {
                 const card = document.createElement('div');
                 card.className = `question-card ${idx === 0 ? 'active' : ''}`;
@@ -292,12 +307,13 @@
                     <button class="btn btn-outline" id="download-pdf-btn">
                         <i data-lucide="download"></i> 下載 PDF
                     </button>
-                    <button class="btn btn-close text-gray" id="close-modal-btn" style="background:transparent; border:none; cursor:pointer;">
+                    <button class="btn btn-close text-gray" id="close-modal-btn"
+                        style="background:transparent; border:none; cursor:pointer;">
                         <i data-lucide="x"></i>
                     </button>
                 </div>
             </div>
-            
+
             <div class="modal-body">
                 <!-- 這個區塊是匯出 PDF 的目標範圍 -->
                 <div class="report-document" id="pdf-target">
@@ -327,14 +343,18 @@
                     </div>
 
                     <div class="report-section" style="margin-top:2rem;">
-                        <div class="ai-advice-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom:0.5rem; margin-bottom:1rem;">
+                        <div class="ai-advice-header"
+                            style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom:0.5rem; margin-bottom:1rem;">
                             <h3 style="margin:0;">AI 面試官綜合建議</h3>
-                            <button class="btn btn-primary" id="generate-advice-btn" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                            <button class="btn btn-primary" id="generate-advice-btn"
+                                style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
                                 產生總結分析
                             </button>
                         </div>
-                        <div class="ai-advice-content" id="ai-aggregate-advice" style="background-color:#f8fafc; padding:1.5rem; border-radius:0.5rem; min-height:100px; white-space:pre-wrap; line-height:1.6; color:#334155;">
-                            <p class="empty-state" style="color:#94a3b8; text-align:center;">點擊上方按鈕，AI 將為您的所有面試紀錄進行綜合分析。</p>
+                        <div class="ai-advice-content" id="ai-aggregate-advice"
+                            style="background-color:#f8fafc; padding:1.5rem; border-radius:0.5rem; min-height:100px; white-space:pre-wrap; line-height:1.6; color:#334155;">
+                            <p class="empty-state" style="color:#94a3b8; text-align:center;">點擊上方按鈕，AI 將為您的所有面試紀錄進行綜合分析。
+                            </p>
                         </div>
                     </div>
                 </div>
