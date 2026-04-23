@@ -155,8 +155,8 @@
         });
 
         window.API_CONFIG = {
-            // 從 URL 參數讀取 API 基礎 URL，預設使用本地 API Gateway (Proxy Port 5000) 或後端 Port
-            baseUrl: new URLSearchParams(window.location.search).get('apiUrl') || 'http://127.0.0.1:5000',
+            // 從 URL 參數讀取 API 基礎 URL，預設使用 ngrok 轉接網址
+            baseUrl: new URLSearchParams(window.location.search).get('apiUrl') || 'https://karissa-unsiding-graphemically.ngrok-free.dev',
             explicitApiUrl: !!new URLSearchParams(window.location.search).get('apiUrl'),
             ready: false,
             loaded: apiConfigPromise,
